@@ -5,6 +5,7 @@ use zip::ZipWriter;
 use colored::*;
 
 mod parser;
+mod utils;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -23,24 +24,22 @@ fn main() {
 
 
     let fx_manifest_path = Path::new(&args.path).join("fxmanifest.lua");
-    let file_content = std::fs::read_to_string(&fx_manifest_path).expect("Could not read file");
+    let fx_manifest_file_content = std::fs::read_to_string(&fx_manifest_path).expect("Could not read file");
 
-    let extracted_path = parser::extract_file_paths(file_content.as_str());
+    let extracted_path = parser::extract_file_paths(fx_manifest_file_content.as_str());
 
-    let mut resolved_paths = parser::resolve_file_paths(extracted_path);
+    let mut resolved_paths = parser::resolve_file_paths(extracted_path, &args.path);
     resolved_paths.push(String::from(fx_manifest_path.to_str().unwrap()));
     resolved_paths.dedup();
 
-    println!("{}", "=========== Packed files ===========".magenta().bold());
-    print_packed_files_info(&resolved_paths);
-    println!("{}", "====================================".magenta().bold());
+    print_packed_files_info(&resolved_paths, &args.path);
 
     let zip_file = std::fs::File::create(args.output).unwrap();
     let mut zip_writer = ZipWriter::new(zip_file);
 
     for path in resolved_paths {
-        let relative_path = Path::new(&args.path).join(&path);
-        zip_writer.start_file(path, zip::write::FileOptions::default()).unwrap();
+        zip_writer.start_file(&path, zip::write::FileOptions::default()).unwrap();
+        let relative_path = utils::to_relative_path(&path, &args.path);
         let content = std::fs::read(&relative_path).unwrap();
         zip_writer.write(&content).unwrap();
     }
@@ -51,10 +50,12 @@ fn main() {
 }
 
 
-fn print_packed_files_info(packed_files: &Vec<String>) {
+fn print_packed_files_info(packed_files: &Vec<String>, base_path: &String) {
+    println!("{}", "=========== Packed files ===========".magenta().bold());
     let mut total_size = 0;
     for file in packed_files {
-        let file_path = Path::new(&file);
+        let relative_path = utils::to_relative_path(file, base_path);
+        let file_path = Path::new(&relative_path);
         
         let file_len = file_path.metadata().unwrap().len();
         total_size += file_len;
@@ -62,5 +63,7 @@ fn print_packed_files_info(packed_files: &Vec<String>) {
         println!("{} {}", format!("{:.2} KB", file_len as f64 / 1024.0).yellow(), file_path.to_str().unwrap().green());
     }
 
-    println!("\n{} {}", format!("{:.2} KB", total_size as f64 / 1024.0).yellow(), "Total size".green().bold().on_green());
+    println!("\n{} {}", format!("{:.2} KB", total_size as f64 / 1024.0).yellow(), "Total unpacked size".green().bold());
+    println!("{}", "====================================".magenta().bold());
+
 }
