@@ -34,7 +34,11 @@ fn main() {
 
     print_packed_files_info(&resolved_paths, &args.path);
 
-    let zip_file = std::fs::File::create(args.output).unwrap();
+    if args.dry_run {
+        return;
+    }
+
+    let zip_file = std::fs::File::create(&args.output).unwrap();
     let mut zip_writer = ZipWriter::new(zip_file);
 
     for path in resolved_paths {
@@ -45,7 +49,7 @@ fn main() {
     }
 
     zip_writer.finish().unwrap();
-    println!("Finished writing zip file");
+    println!("Zip file created at {}", args.output.green().bold());
 
 }
 
@@ -63,7 +67,7 @@ fn print_packed_files_info(packed_files: &Vec<String>, base_path: &String) {
         println!("{} {}", format!("{:.2} KB", file_len as f64 / 1024.0).yellow(), file_path.to_str().unwrap().green());
     }
 
-    println!("\n{} {}", format!("{:.2} KB", total_size as f64 / 1024.0).yellow(), "Total unpacked size".green().bold());
     println!("{}", "====================================".magenta().bold());
+    println!("\n{} {}", format!("{:.2} KB", total_size as f64 / 1024.0).yellow(), "Total unpacked size".green().bold());
 
 }
